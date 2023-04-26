@@ -1,6 +1,6 @@
-
 import numpy as np
 import cv2
+import time
 
 def nothing(value):
     pass
@@ -24,13 +24,12 @@ cv2.createTrackbar("UV", "Trackbars", 255, 255, nothing)
 dim = (640, 360)
 
 fpsT = videoT.get(cv2.CAP_PROP_FPS)
-fpsN = videoT.get(cv2.CAP_PROP_FPS)
-fpsM = videoT.get(cv2.CAP_PROP_FPS)
 print(fpsT)
-print(fpsN)
-print(fpsM)
+
 
 while True:
+    start = time.time()
+
     retT, frameT = videoT.read()
     retN, frameN = videoN.read()
     retM, frameM = videoM.read()
@@ -73,6 +72,11 @@ while True:
     key = cv2.waitKey(1)
     if key == 27:
         break
+
+    end =time.time()
+    elapsed=end-start
+    if 1/25>elapsed:
+        time.sleep(1/25 - elapsed)
 
 videoT.release()
 cv2.destroyAllWindows()
