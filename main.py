@@ -13,7 +13,20 @@ videoT = cv2.VideoCapture(videoPathThermal)
 videoN = cv2.VideoCapture(videoPathNormal)
 videoM = cv2.VideoCapture(videoPathMerged)
 
+cv2.namedWindow('Thermal')
+cv2.namedWindow('Normal')
+cv2.namedWindow('Merged')
+cv2.namedWindow('Mask Thermal')
+cv2.namedWindow("Edges")
 cv2.namedWindow("Trackbars")
+
+cv2.moveWindow('Thermal',0,0)
+cv2.moveWindow('Normal',640,0)
+cv2.moveWindow('Merged',1280,0)
+cv2.moveWindow('Edges',0,390)
+cv2.moveWindow('Mask Thermal',640,390)
+cv2.moveWindow('Trackbars',1280,390)
+
 cv2.createTrackbar("LH", "Trackbars", 179, 179, nothing)
 cv2.createTrackbar("LS", "Trackbars", 255, 255, nothing)
 cv2.createTrackbar("LV", "Trackbars", 255, 255, nothing)
@@ -59,7 +72,6 @@ while True:
     high = np.array([UH, US, UV])
     mask = cv2.inRange(hsv, low, high)
     edges = cv2.Canny(mask,75,150)
-    cv2.imshow("edges", edges)
     lines = cv2.HoughLinesP(edges,1,np.pi/180,50,maxLineGap=100,minLineLength=70)
     if lines is not None:
         for line in lines:
@@ -68,6 +80,7 @@ while True:
     cv2.imshow("Thermal", frameT)
     cv2.imshow("Normal", frameN)
     cv2.imshow("Merged", frameM)
+    cv2.imshow("Edges", edges)
     cv2.imshow("Mask Thermal", mask)
     key = cv2.waitKey(1)
     if key == 27:
