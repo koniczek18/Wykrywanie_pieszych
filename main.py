@@ -2,9 +2,48 @@ import numpy as np
 import cv2
 import time
 
+
 def nothing(value):
     #empty function for callbacks
     pass
+
+
+# class and parameters for pedestrian detection
+maxGap = 5
+marginX = 120  # pixels ignored from either side
+marginY = 120  # pixels ignored from the top
+
+
+class Shape:
+    def __init__(self):
+        self.pixels = []
+        self.bounds = []
+
+    def getPixels(self):
+        return self.pixels
+
+    def append(self, pxl):
+        if len(self.bounds) == 0:
+            self.bounds.append(pxl[0])
+            self.bounds.append(pxl[1])
+        elif len(self.bounds) == 2:
+            old_pxl = (self.bounds[0], self.bounds[1])
+            self.bounds = [min(old_pxl[0], pxl[0]), min(old_pxl[1], pxl[1]),
+                           max(old_pxl[0], pxl[0]), max(old_pxl[1], pxl[1])]
+        else:
+            self.bounds = [min(self.bounds[0], pxl[0]), min(self.bounds[1], pxl[1]),
+                           max(self.bounds[2], pxl[0]), max(self.bounds[3], pxl[1])]
+        self.pixels.append(pxl)
+
+    def pixelCount(self):
+        return len(self.pixels)
+
+    def getCenter(self):
+        if len(self.bounds) < 4:
+            return self.bounds[0], self.bounds[1]
+        else:
+            return (self.bounds[0] + self.bounds[2]) / 2, (self.bounds[1] + self.bounds[3]) / 2
+
 
 #file paths to video materials
 videoPathThermal = ["src/video_in_motion/thermal/Jazda_LudzieNaTorach_Termo_1.avi",
@@ -67,7 +106,7 @@ videoPathMerged = ["src/video_in_motion/merged/Jazda_LudzieNaTorach_Merged_1.avi
                     "src/video_stationary/merged/Postoj_LudzieNaTorach_Merged_7.avi",
                     "src/video_stationary/merged/Postoj_LudzieNaTorach_Merged_10.avi",
                     "src/video_stationary/merged/Postoj_LudzieNaTorach_Merged_12.avi"]
-vid_num = 0  # problems with 4, 15
+vid_num = 0   # from 0 to 19, problems with 4 and 15
 
 #initialise video capture based on file paths
 videoT = cv2.VideoCapture(videoPathThermal[vid_num])
@@ -95,12 +134,14 @@ cv2.moveWindow('Edges',dim[0],30+dim[1])
 cv2.moveWindow('Trackbars',2*dim[0],30+dim[1])
 
 #initialise trackbars !!! THE FIRST VALUE IN TRACKBAR IS INITIAL, SECOND IS MAX!!!
-cv2.createTrackbar("LH", "Trackbars", 7, 179, nothing)
-cv2.createTrackbar("LS", "Trackbars", 0, 255, nothing)
-cv2.createTrackbar("LV", "Trackbars", 50, 255, nothing)
-cv2.createTrackbar("UH", "Trackbars", 173, 179, nothing)
-cv2.createTrackbar("US", "Trackbars", 7, 255, nothing)
-cv2.createTrackbar("UV", "Trackbars", 115, 255, nothing)
+cv2.createTrackbar("LH", "Trackbars", 0, 179, nothing)  # 7
+cv2.createTrackbar("LS", "Trackbars", 0, 255, nothing)  # 0
+cv2.createTrackbar("LV", "Trackbars", 125, 255, nothing)  # 50
+cv2.createTrackbar("UH", "Trackbars", 179, 179, nothing)  # 173
+cv2.createTrackbar("US", "Trackbars", 71, 255, nothing)  # 7
+cv2.createTrackbar("UV", "Trackbars", 255, 255, nothing)  # 115
+cv2.createTrackbar("PS", "Trackbars", 5, 25, nothing)  # 115
+cv2.createTrackbar("PG", "Trackbars", 15, 25, nothing)  # 115
 
 while True:
     #fps limiation
@@ -128,6 +169,8 @@ while True:
     UH = cv2.getTrackbarPos("UH", "Trackbars")
     US = cv2.getTrackbarPos("US", "Trackbars")
     UV = cv2.getTrackbarPos("UV", "Trackbars")
+    PS = cv2.getTrackbarPos("PS", "Trackbars")
+    PG = cv2.getTrackbarPos("PG", "Trackbars")
 
     #resize windows
     frameT = cv2.resize(frameT, dim, interpolation=cv2.INTER_AREA)
@@ -144,7 +187,43 @@ while True:
     if lines is not None:
         for line in lines:
             x1, y1, x2, y2 = line[0]
-            cv2.line(frameT, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            if abs(x1 - x2)/dim[0] < abs(y1 - y2)/dim[1]:
+                cv2.line(frameT, (x1, y1), (x2, y2), (0, 255, 0), 3)
+
+    # find pedestrians, hopefully
+    shapes = []
+    for x in range(dim[0] - 2 * marginX):
+        for y in range(dim[1] - marginY):
+            # for every pixel we check its value
+            if edges[y + marginY][x + marginX] > 0:
+                foundShape = False
+                # we check for existing shapes
+                for s in shapes:
+                    pixel = None
+                    for p in s.getPixels():
+                        # we check all pixels in a shape, to see if any are close enough
+                        if (x + marginX - maxGap < p[0] < x + marginX + maxGap)\
+                                and (y + marginY - maxGap < p[1] < y + marginY + maxGap):
+                            pixel = (x + marginX, y + marginY)
+                            break
+                    # if shape contains a pixel close by, current pixel is added to it
+                    if pixel is not None:
+                        foundShape = True
+                        s.append(pixel)
+                        break
+
+                # if pixel stands alone, create a new Shape
+                if not foundShape:
+                    shape = Shape()
+                    shape.append((x + marginX, y + marginY))
+                    shapes.append(shape)
+
+    # change color of found shapes, for some reason
+    for s in shapes:
+        if s.pixelCount() > PS + PG * int(s.getCenter()[1]/60):
+            for p in s.getPixels():
+                edges[p[1]][p[0]] = 80
+
     #show results
     cv2.imshow("Thermal", frameT)
     cv2.imshow("Normal", frameN)
